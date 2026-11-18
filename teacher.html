@@ -101,6 +101,11 @@ td{border-bottom:1px solid #e1dbc2}
 tr.top td{background:rgba(183,227,90,.16)}
 tr.top:first-child td{background:rgba(244,230,107,.35)}
 @media (max-width:560px){.deco .vine{display:none}}
+.howto summary{cursor:pointer;font-weight:bold;font-size:16pt}
+.howto ol{margin:8px 0 0;padding-left:1.4em;display:flex;flex-direction:column;gap:6px}
+.howto .zh{display:block;color:var(--muted)}
+.howto .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px 28px}
+@media (max-width:900px){.howto .cols{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -141,6 +146,26 @@ AUTH.onAuthStateChanged(u=>{if(!u)return;uid=u.uid;if(booted)return;booted=true;
 async function freshAuth(force){if(force){try{await AUTH.signOut();}catch(e){}}if(!AUTH.currentUser)await AUTH.signInAnonymously();await AUTH.currentUser.getIdToken(true);return AUTH.currentUser.uid;}
 
 
+
+function howTo(open){
+  return `<div class="card howto"><details${open?" open":""}><summary>📖 How to play 怎么玩</summary><div class="cols">
+   <div><h3>Students 学生</h3><ol>
+    <li>Scan the QR code or open <b>${GAME_URL}</b>. Type the game code and your name, then tap <b>Join game</b>.<span class="zh">扫码或打开链接，输入游戏密码和名字，按 Join game。</span></li>
+    <li>Move with the arrow keys, the buttons, or swipe. It is dark — you only see near you.<span class="zh">用方向键、按钮或滑动移动。丛林很暗，只能看到身边。</span></li>
+    <li>Walk into a gate 🚪 to answer its question. Tap <b>📜 Passage</b> to read the text.<span class="zh">走到大门回答问题，按 📜 Passage 看文章。</span></li>
+    <li>Pick the line where you found the answer to win a bonus key 🔑.<span class="zh">选出答案所在的行，赢得奖励钥匙。</span></li>
+    <li>Open all gates and reach the exit ✨ in 3 mazes to find the treasure.<span class="zh">打开所有大门，走出 3 个迷宫，找到宝藏。</span></li>
+   </ol></div>
+   <div><h3>Rules 规则</h3><ol>
+    <li>15 minutes. Wrong answer −15 s. Hint −10 s.<span class="zh">限时 15 分钟。答错扣 15 秒，看提示扣 10 秒。</span></li>
+    <li>Correct first try +100, after a mistake +50, bonus key +50, firefly 🟡 +10.<span class="zh">第一次答对 +100，答错后答对 +50，钥匙 +50，萤火虫 +10。</span></li>
+    <li>Short spelling slips get “Check your spelling” — no time lost.<span class="zh">小拼写错误会提示检查拼写，不扣时间。</span></li>
+   </ol>
+   <h3 style="margin-top:12px">Teacher 老师</h3><ol>
+    <li><b>New game</b> → show the code / QR → <b>Start game</b> when everyone is in.<span class="zh">按 New game，投影密码/二维码，全员加入后按 Start game。</span></li>
+    <li>Watch the live leaderboard. <b>End game</b> to finish, <b>Download results</b> for the scores.<span class="zh">看即时排行榜。按 End game 结束，Download results 下载成绩。</span></li>
+   </ol></div></div></details></div>`;
+}
 function home(msg){
   stopWatch();code=null;game=null;store.set("mazeTeacherGame",null);
   app.innerHTML=`<div class="bar"><h1>Animal Maze · Teacher</h1></div>
@@ -149,7 +174,7 @@ function home(msg){
      <p class="muted" style="margin:0;max-width:52ch">You get a 6-digit code. Students open <b>${GAME_URL}</b>, type the code and a name, and you watch their scores live.</p>
      ${msg?`<p class="low" style="margin:0">${esc(msg)}</p>`:""}
      <button class="btn go" id="new">New game</button>
-   </div>`;
+   </div>${howTo(true)}`;
   document.getElementById("new").onclick=newGame;
 }
 
@@ -242,7 +267,7 @@ function renderLobby(ps){
    <div class="card"><div class="row" style="justify-content:space-between"><h2>Students joined: ${ps.length}</h2>
      <span class="muted">Press Start when everyone is in. 全部加入后按 Start。</span></div>
      <div class="chips">${ps.length?ps.map(p=>`<span class="chip"><span class="dot ${p.online===false?"off":""}"></span>${esc(p.label)}<button data-kick="${p.id}" aria-label="Remove ${esc(p.label)}">×</button></span>`).join(""):`<span class="muted">Waiting for students to join…</span>`}</div>
-   </div>`;
+   </div>${howTo(false)}`;
   wireTop(ps);
 }
 

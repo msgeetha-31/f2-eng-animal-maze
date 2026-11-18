@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animal Maze</title>
+<style>
+/* Layout: status bar on top, one notebook-style card holding the maze canvas + D-pad; question and passage open as overlays */
+:root{
+  --night:#07140d; --leaf:#12301c; --moss:#2f6b3a; --lime:#b7e35a; --glow:#f4e66b;
+  --paper:#f4f0e2; --ink:#1d2a1f; --muted:#5d6b5a; --line:#d6cdb0;
+  --ok:#1f9d5c; --ok-soft:#dcf3e4; --bad:#d9443c; --bad-soft:#fbe2df; --amber:#f2a93b;
+  --m1:#2f9e8f; --m1s:#dcf2ee; --m2:#d9822b; --m2s:#fbebd8; --m3:#8a5cc7; --m3s:#ece3f8;
+  --font:"Times New Roman", Times, "Liberation Serif", serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;color:var(--ink);font-family:var(--font);font-size:14pt;line-height:1.5;overflow-x:hidden;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px));
+  background:radial-gradient(ellipse at 50% 0%,#1d4a2b 0%,#0c2416 45%,var(--night) 100%) fixed}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.75) 100%)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;box-shadow:inset 0 0 120px 30px #ff3b4e}
+body.danger::after{animation:heartbeat 1s infinite}
+@keyframes heartbeat{0%,100%{opacity:.12}15%{opacity:.7}30%{opacity:.22}45%{opacity:.55}}
+h1,h2,h3{font-size:16pt;font-weight:bold;margin:0;line-height:1.3;text-wrap:balance}
+button,input{font-family:var(--font);font-size:14pt;color:var(--ink)}
+button{cursor:pointer;border:0;border-radius:12px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+#flies,#confetti{position:fixed;inset:0;pointer-events:none}
+#flies{z-index:0} #confetti{z-index:70}
+.deco{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.deco>div{position:absolute}
+.wrap{position:relative;z-index:1;max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.status{display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;justify-content:space-between;border-radius:16px;padding:8px 14px;
+  background:rgba(6,18,10,.88);color:#eef3d6;border:1px solid rgba(183,227,90,.35);box-shadow:0 0 24px rgba(183,227,90,.12),0 6px 0 #020604}
+.status .item{display:flex;align-items:center;gap:6px;font-weight:bold}
+.status .time{font-variant-numeric:tabular-nums;font-size:16pt;color:var(--glow);text-shadow:0 0 8px rgba(244,230,107,.55)}
+.status .time.low{color:#ff5a5a;text-shadow:0 0 10px #ff3b4e;animation:tick 1s steps(1) infinite}
+@keyframes tick{50%{opacity:.45}}
+.mute{background:transparent;color:#eef3d6;padding:2px 6px;font-size:14pt}
+.card{background:var(--paper);border-radius:22px;padding:clamp(14px,3.5vw,28px);display:flex;flex-direction:column;gap:14px;
+  border-top:10px solid var(--rc,var(--lime));box-shadow:0 0 0 2px rgba(183,227,90,.25),0 24px 50px rgba(0,0,0,.65)}
+.btn{background:var(--leaf);color:#fff;padding:10px 20px;font-weight:bold;box-shadow:0 4px 0 #061209;transition:transform .08s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #061209}
+.btn.alt{background:var(--paper);color:var(--ink);box-shadow:inset 0 0 0 2px var(--line),0 4px 0 var(--line)}
+.btn.hint{background:var(--glow);color:var(--ink);box-shadow:0 4px 0 #b9a63a}
+.btn.go{background:var(--ok);box-shadow:0 4px 0 #13693c}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.muted{color:var(--muted)}
+.zh{color:var(--muted);display:block}
+.center{text-align:center;align-items:center}
+.mascot{width:104px;height:104px;flex:none}
+.mascot.bounce{animation:bounce .6s}
+.shake{animation:shake .4s}
+@keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes bounce{30%{transform:translateY(-14px)}60%{transform:translateY(0)}80%{transform:translateY(-5px)}}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.talk{display:flex;gap:12px;align-items:center}
+.bubble{background:#e7efd2;border-radius:16px;padding:10px 14px;position:relative;min-width:0}
+.bubble::before{content:"";position:absolute;left:-10px;top:50%;margin-top:-8px;border:8px solid transparent;border-right-color:#e7efd2;border-left:0}
+.namein{border:2px solid var(--line);border-radius:12px;padding:10px 14px;width:100%;max-width:340px;background:#fff}
+.rules{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:4px}
+.mazes3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.mchip{border-radius:14px;padding:10px;text-align:center;font-weight:bold;color:#fff}
+.mchip small{display:block;font-weight:normal;font-size:14pt;opacity:.95}
+.fb{border-radius:14px;padding:12px 16px}
+.fb.ok{background:var(--ok-soft)} .fb.no{background:var(--bad-soft)} .fb.hintbox{background:#fbf3c4} .fb.info{background:#e7efd2}
+.fb b{display:block}
+.float{position:fixed;font-weight:bold;font-size:16pt;color:#ff5a5a;pointer-events:none;z-index:90;animation:floatup 1.2s forwards;text-shadow:0 1px 0 #000}
+.float.plus{color:var(--glow)}
+@keyframes floatup{to{transform:translateY(-50px);opacity:0}}
+.flash{position:fixed;inset:0;pointer-events:none;z-index:65;animation:fl .6s ease-out forwards}
+.flash.bad{box-shadow:inset 0 0 160px 50px #ff3b4e;background:rgba(255,40,60,.1)}
+.flash.good{box-shadow:inset 0 0 160px 40px #2bd47d}
+@keyframes fl{to{opacity:0}}
+
+/* maze screen */
+.mhead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+.tag{display:inline-block;padding:3px 12px;border-radius:999px;background:var(--rs);color:var(--rc);font-weight:bold}
+.gates{display:flex;gap:6px;align-items:center}
+.gates i{width:30px;height:24px;border-radius:6px;border:2px solid var(--line);font-style:normal;font-size:11pt;display:grid;place-items:center;color:var(--muted);font-weight:bold}
+.gates i.d{background:var(--rc);border-color:var(--rc);color:#fff}
+.stage{position:relative;width:100%;border-radius:16px;overflow:hidden;background:#06120a;box-shadow:inset 0 0 0 3px #0b2414,0 6px 18px rgba(0,0,0,.35);touch-action:none}
+.stage canvas{display:block;width:100%;height:auto}
+.toast{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(6,18,10,.88);color:#eef3d6;border-radius:999px;padding:4px 14px;font-size:12pt;white-space:nowrap;pointer-events:none;transition:opacity .4s}
+.ctrl{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.dpad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,52px);gap:6px}
+.dpad button{background:linear-gradient(#2e5a37,#173a21);color:#eef3d6;font-size:18pt;border:1px solid #0b2414;box-shadow:0 4px 0 #061209;touch-action:none;user-select:none;-webkit-user-select:none}
+.dpad button:active,.dpad button.on{transform:translateY(3px);box-shadow:0 1px 0 #061209}
+.dpad .u{grid-column:2;grid-row:1}.dpad .l{grid-column:1;grid-row:2}.dpad .r{grid-column:3;grid-row:2}.dpad .d{grid-column:2;grid-row:3}
+.side{display:flex;flex-direction:column;gap:8px;flex:1;min-width:180px}
+.legend{font-size:12pt;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+
+/* overlays */
+.ov{position:fixed;inset:0;z-index:50;background:rgba(2,8,4,.72);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 24px max(12px,env(safe-area-inset-left,0px))}
+.ov.top{z-index:55}
+.panel{width:100%;max-width:640px;background:var(--paper);border-radius:20px;padding:clamp(14px,3.5vw,26px);display:flex;flex-direction:column;gap:14px;
+  border-top:10px solid var(--rc,var(--lime));box-shadow:0 30px 60px rgba(0,0,0,.6);animation:rise .25s ease-out}
+@keyframes rise{from{transform:translateY(24px);opacity:0}}
+.phead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.ask{font-size:16pt;font-weight:bold}
+.sentence{font-size:16pt;line-height:2.1;overflow-wrap:anywhere}
+.blank{font-size:16pt;border:0;border-bottom:3px solid var(--rc);background:var(--rs);border-radius:8px 8px 0 0;padding:0 8px;text-align:center;max-width:100%}
+.blank.right{border-color:var(--ok);background:var(--ok-soft)}
+.blank.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.yn{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.opts{display:grid;grid-template-columns:1fr;gap:8px}
+.opt{background:#fff;border:3px solid var(--line);border-radius:14px;padding:10px 14px;text-align:left;font-size:14pt;display:flex;gap:10px;align-items:center}
+.opt b{width:30px;height:30px;border-radius:50%;background:var(--rs);color:var(--rc);display:grid;place-items:center;flex:none}
+.yn .opt{justify-content:center;font-weight:bold;font-size:16pt}
+.opt:hover:not(:disabled){border-color:var(--rc)}
+.opt.sel{border-color:var(--rc);background:var(--rs)}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.lines4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.lines4 .opt{justify-content:center;font-weight:bold}
+.passage{background:#fffdf5;border-radius:14px;padding:12px 14px;box-shadow:inset 0 0 0 2px var(--line)}
+.passage h3{text-align:center}
+.passage .by{text-align:center;color:var(--muted);margin-bottom:8px}
+.pl{display:grid;grid-template-columns:34px 1fr;gap:0 8px;line-height:1.75}
+.pl .n{color:#c0392b;text-align:right;font-variant-numeric:tabular-nums}
+.pl .t.ind{text-indent:1.6em}
+.pl .gap{grid-column:1/-1;height:6px}
+.src{font-size:12pt;color:var(--muted);font-style:italic;text-align:right;margin-top:6px;overflow-wrap:anywhere}
+
+/* intro / end */
+.mintro{display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+.sign{width:180px;height:auto}
+.stars{font-size:16pt;letter-spacing:6px;color:#e2b100;text-shadow:0 2px 0 #9b7b00}
+.stars .off{color:var(--line);text-shadow:none}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%}
+.stat{background:#e7efd2;border-radius:14px;padding:10px}
+.stat b{display:block;font-size:16pt;font-variant-numeric:tabular-nums}
+.review{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;width:100%;text-align:left}
+.review li{background:#e7efd2;border-radius:12px;padding:10px 14px}
+.chest{width:170px;margin:0 auto;filter:drop-shadow(0 0 18px #ffd65a)}
+@media (max-width:560px){.mazes3,.stats{grid-template-columns:1fr}.mascot{width:78px;height:78px}.lines4{grid-template-columns:1fr 1fr}
+  .dpad{grid-template-columns:repeat(3,62px);grid-template-rows:repeat(3,54px)}.deco .vine{display:none}}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="flies" aria-hidden="true"></canvas>
+<div class="deco" id="deco" aria-hidden="true"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<div class="wrap">
+  <div class="status" id="status" hidden></div>
+  <div class="card" id="card"></div>
+</div>
+<div id="ovq" class="ov" hidden></div>
+<div id="ovp" class="ov top" hidden></div>
+<script>
+// ===== Passage: "Animal Fun Facts" by Christine Leung (BI F2→F3 12.2, Unit 3) — line numbers match the worksheet =====
+const PASSAGE=[
+ [1,"I love animals! I’m always reading and watching documentaries to learn all I can",1],
+ [2,"about as many animals as possible. From those, I’ve picked up some fun facts to"],
+ [3,"share with everyone."],
+ [4,"For instance, did you know that rats are the quickest natural breeders? In just 18",1],
+ [5,"months, two rats can create over one million relatives! On the other hand one of the"],
+ [6,"largest animals in the world, the blue whale, produces the loudest sound of any"],
+ [7,"animal. The noise can be heard over 800 kilometres away, especially as sound"],
+ [8,"travels quicker underwater."],
+ [9,"If you’re like me, you’ll love lying on the bed on soft pillows under a fluffy",1],
+ [10,"blanket. So imagine sleeping while standing up like horses and cows! Remember"],
+ [11,"that buzzing sound that tells you a bee or mosquito is around? That’s from their"],
+ [12,"wings beating so quickly that it makes noise."],
+ [13,"Sharks may be scary, but they don’t have any bones at all and they lay the biggest",1],
+ [14,"eggs of any animal in the world. A snake has transparent eyelids, so even when their"],
+ [15,"eyes are closed, they can still see. Nothing is able to surprise a snake!"],
+ [16,"Everyone has a favourite food. Now, imagine being able to eat as much as you want",1],
+ [17,"just like a sheep, which has four stomachs to help it digest its food. A polar bear"],
+ [18,"looks warm and fluffy, but it actually has black skin and transparent fur."],
+ [19,"From the time it is born to old age, the average housefly only lives for two to",1],
+ [20,"three weeks. Talk about fast living! Besides that, who doesn’t know about mosquito"],
+ [21,"bites and the danger of dengue? What you might not know is that only female"],
+ [22,"mosquitoes bite humans."],
+ [23,"Finally, your cuddly pet cat, like all cats, is actually a very smart animal which",1],
+ [24,"uses its whiskers to check if a space is too small for it to fit through before"],
+ [25,"squeezing through or looking for a better exit. I hope these fun facts help you to see"],
+ [26,"the animals around us in a new light!"]];
+
+// ===== Questions 25–34 (answers + lines from the teacher's answer key) =====
+const QS=[
+ {id:"25",t:"fill",before:"The blue whale makes",after:"of any animal.",a:["the loudest sound","the loudest noise"],w:17,
+  h:"Read paragraph 2. Find the part about the blue whale.",hz:"看第二段，找出关于蓝鲸的部分。",
+  full:"The blue whale produces the loudest sound of any animal.",lines:["Lines 6–7"],lo:["Lines 4–5","Lines 6–7","Line 8","Lines 9–10"]},
+ {id:"26",t:"yn",ask:"Do cows stand while sleeping?",yes:true,
+  reasons:["They can sleep while standing up, like horses.","They sleep on soft pillows under a blanket.","They lie down on the bed to sleep.","They only sleep in the daytime."],
+  h:"Read paragraph 3. Which animals sleep in an unusual way?",hz:"看第三段：哪些动物用特别的方式睡觉？",
+  full:"Yes, they can sleep while standing up, like horses and cows.",lines:["Lines 9–10"],lo:["Lines 6–7","Lines 9–10","Lines 11–12","Line 16"]},
+ {id:"27",t:"fill",before:"By",after:"their wings, bees make a buzzing sound.",a:["beating so quickly","beating quickly","beating very quickly"],w:18,
+  h:"Read the end of paragraph 3, about the buzzing sound.",hz:"看第三段末尾，关于嗡嗡声的句子。",
+  full:"The buzzing sound comes from their wings beating so quickly.",lines:["Lines 11–12"],lo:["Lines 9–10","Lines 11–12","Lines 13–14","Lines 21–22"]},
+ {id:"28",t:"fill",before:"Sharks produce",after:"in the world.",a:["the biggest eggs","the largest eggs"],w:16,
+  h:"Read paragraph 4. What do sharks lay?",hz:"看第四段：鲨鱼产下什么？",
+  full:"Sharks lay the biggest eggs of any animal in the world.",lines:["Lines 13–14"],lo:["Lines 6–7","Lines 13–14","Lines 14–15","Line 17"]},
+ {id:"29",t:"fill",before:"Even when a snake seems to be asleep, it is watching through",after:".",a:["transparent eyelids"],w:20,
+  h:"Read the end of paragraph 4, about a snake’s eyes.",hz:"看第四段末尾，关于蛇的眼睛。",
+  full:"A snake has transparent eyelids, so even when its eyes are closed, it can still see.",lines:["Lines 14–15"],lo:["Lines 9–10","Lines 13–14","Lines 14–15","Line 18"]},
+ {id:"30",t:"fill",before:"Sheep have four stomachs to help them",after:"that they eat.",a:["digest the food","digest its food","digest their food","digest food"],w:16,
+  h:"Read paragraph 5. Why does a sheep have four stomachs?",hz:"看第五段：羊为什么有四个胃？",
+  full:"A sheep has four stomachs to help it digest its food.",lines:["Line 17"],lo:["Line 16","Line 17","Line 18","Lines 19–20"]},
+ {id:"31",t:"yn",ask:"Do male mosquitoes bite humans?",yes:false,
+  reasons:["Only female mosquitoes bite humans.","Only male mosquitoes bite humans.","All mosquitoes bite humans at night.","Mosquitoes only bite horses and cows."],
+  h:"Read paragraph 6, about mosquito bites and dengue.",hz:"看第六段，关于蚊子叮咬和骨痛热症。",
+  full:"No, only female mosquitoes bite humans.",lines:["Lines 21–22"],lo:["Lines 11–12","Lines 19–20","Lines 21–22","Lines 23–24"]},
+ {id:"32",t:"fill",before:"A cat uses its",after:"to check if it can fit through a space.",a:["whiskers"],w:12,
+  h:"Read the last paragraph, about the cuddly pet cat.",hz:"看最后一段，关于可爱的宠物猫。",
+  full:"A cat uses its whiskers to check if a space is too small for it to fit through.",lines:["Line 24"],lo:["Line 17","Line 23","Line 24","Line 25"]},
+ {id:"33",t:"word",mean:"to produce or make",a:["create"],w:12,
+  h:"Look in paragraph 2: what can two rats do in 18 months?",hz:"看第二段：两只老鼠在 18 个月里能做什么？",
+  full:"“Two rats can create over one million relatives!”",lines:["Line 5"],lo:["Line 2","Line 4","Line 5","Line 13"]},
+ {id:"34",t:"word",mean:"furry, shaggy",a:["fluffy"],w:12,
+  h:"Look at the blanket in paragraph 3, or the polar bear in paragraph 5.",hz:"看第三段的毯子，或第五段的北极熊。",
+  full:"“…under a fluffy blanket” / “A polar bear looks warm and fluffy”",lines:["Line 9","Line 18"],lo:["Line 9","Line 17","Line 18","Line 23"]}
+];
+const MAZES=[
+ {name:"Maze 1",title:"The River Trail",zh:"第一迷宫：河边小路",qs:[0,1,2,3],w:7,h:7,seed:101,c:"var(--m1)",s:"var(--m1s)",hex:"#2f9e8f"},
+ {name:"Maze 2",title:"The Bamboo Forest",zh:"第二迷宫：竹林",qs:[4,5,6,7],w:8,h:8,seed:202,c:"var(--m2)",s:"var(--m2s)",hex:"#d9822b"},
+ {name:"Maze 3",title:"The Treasure Cave",zh:"第三迷宫：宝藏洞穴",qs:[8,9],w:7,h:7,seed:303,c:"var(--m3)",s:"var(--m3s)",hex:"#8a5cc7"}];
+const TOTAL_Q=QS.length, TOTAL_TIME=15*60, WRONG_PEN=15, HINT_PEN=10;
+
+// ===== Helpers =====
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+const fmt=s=>{s=Math.max(0,s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
+const FILLER=new Set(["the","a","an","its","their","them","his","her"]);
+const norm=s=>(s||"").toLowerCase().replace(/[’‘`]/g,"'").replace(/[^a-z' ]/g," ").replace(/\s+/g," ").trim().split(" ").filter(w=>w&&!FILLER.has(w)).join(" ");
+function lev(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let p=Array.from({length:n+1},(_,j)=>j);
+  for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c;}return p[n];}
+// "right" | "close" (spelling slip, no penalty) | "wrong"
+function mark(input,accepted){const v=norm(input);if(!v)return "empty";
+  if(accepted.some(a=>norm(a)===v))return "right";
+  return accepted.some(a=>{const n=norm(a);return n.length>=5&&lev(n,v)<=2;})?"close":"wrong";}
+
+// ===== Sound (all generated live, no files) =====
+let actx=null,muted=false,musicOn=true;
+function ac(){actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume();return actx;}
+function tone(freqs,dur=.12,type="triangle",vol=.18){
+  if(muted)return;try{const c=ac();
+  freqs.forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=f;
+    const t=c.currentTime+i*dur;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur*1.6);
+    o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur*1.7);});}catch(e){}
+}
+function chirp(){if(muted)return;try{const c=ac();[0,.12].forEach(d=>{const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+d;o.type="sine";
+  o.frequency.setValueAtTime(1900,t);o.frequency.exponentialRampToValueAtTime(3000,t+.08);g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.001,t+.1);
+  o.connect(g).connect(c.destination);o.start(t);o.stop(t+.12);});}catch(e){}}
+function creak(){if(muted)return;try{const c=ac(),o=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain(),t=c.currentTime;
+  o.type="sawtooth";f.type="bandpass";f.frequency.value=600;f.Q.value=5;o.frequency.setValueAtTime(90,t);o.frequency.linearRampToValueAtTime(150,t+.35);o.frequency.linearRampToValueAtTime(70,t+.8);
+  g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(.22,t+.06);g.gain.linearRampToValueAtTime(.0001,t+.9);o.connect(f).connect(g).connect(c.destination);o.start(t);o.stop(t+1);}catch(e){}}
+const SFX={ok:()=>{tone([660,880]);setTimeout(chirp,180);},bad:()=>tone([220,180],.16,"square"),key:()=>tone([784,988,1318],.1),
+  win:()=>tone([523,659,784,1046,1318],.13),click:()=>tone([520],.05),bump:()=>tone([110],.06,"sine",.15),fly:()=>tone([1568,2093],.05,"sine",.12),step:()=>tone([300],.025,"sine",.03)};
+
+// Background music: original jungle marimba loop in A minor pentatonic, generated live
+const BGM={timer:null,step:0,next:0,bus:null,noise:null,
+  MEL:[69,0,72,74,76,0,74,72, 69,0,67,69,72,0,0,0, 76,0,79,76,74,0,72,74, 76,0,74,72,69,0,0,0,
+       81,0,79,76,79,0,76,74, 72,0,74,76,74,0,72,69, 67,0,69,72,74,0,76,74, 72,0,69,67,69,0,0,0],
+  BASS:[45,45,41,43,45,41,43,45],
+  hz:m=>440*Math.pow(2,(m-69)/12),
+  start(){if(this.timer)return;try{const c=ac();
+      if(!this.bus){this.bus=c.createGain();this.bus.connect(c.destination);
+        const n=c.createBuffer(1,c.sampleRate*0.2,c.sampleRate),d=n.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;this.noise=n;}
+      this.level();this.step=0;this.next=c.currentTime+0.1;this.timer=setInterval(()=>this.tick(),25);}catch(e){}},
+  stop(){clearInterval(this.timer);this.timer=null;if(this.bus&&actx)this.bus.gain.setTargetAtTime(0,actx.currentTime,0.05);},
+  level(){if(this.bus&&actx)this.bus.gain.setTargetAtTime(muted||!musicOn?0:.9,actx.currentTime,0.05);},
+  tempo(){return (G.started&&G.timeLeft<=60&&G.phase!=="done"&&G.phase!=="over")?150:112;},
+  tick(){const c=actx;
+    while(this.next<c.currentTime+0.15){
+      const s=this.step%64,t=this.next,dur=60/this.tempo()/2;
+      const m=this.MEL[s];if(m){this.note("triangle",this.hz(m),t,dur*1.6,0.05);this.note("sine",this.hz(m+12),t,dur*0.6,0.015);}
+      if(s%8===0)this.note("sine",this.hz(this.BASS[Math.floor(s/8)]),t,dur*3.5,0.12);
+      if(s%8===5)this.note("sine",this.hz(this.BASS[Math.floor(s/8)]+7),t,dur*1.5,0.07);
+      if(s%4===0)this.drum(t,s%8===0?120:180);
+      this.shaker(t,s%2?0.02:0.035);
+      this.step++;this.next+=dur;}},
+  note(type,f,t,d,v){const c=actx,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v,t+0.008);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g).connect(this.bus);o.start(t);o.stop(t+d+0.02);},
+  drum(t,f){const c=actx,o=c.createOscillator(),g=c.createGain();o.frequency.setValueAtTime(f,t);o.frequency.exponentialRampToValueAtTime(f*.45,t+0.14);
+    g.gain.setValueAtTime(0.13,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.18);o.connect(g).connect(this.bus);o.start(t);o.stop(t+0.2);},
+  shaker(t,v){const c=actx,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();s.buffer=this.noise;f.type="bandpass";f.frequency.value=6500;f.Q.value=1.5;
+    g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.06);s.connect(f).connect(g).connect(this.bus);s.start(t);s.stop(t+0.07);}
+};
+
+// ===== Mascot: Momo the monkey explorer =====
+function momo(mood="happy",cls=""){
+  const mouth=mood==="happy"?'<path d="M40 70 Q50 80 60 70" stroke="#3a2412" stroke-width="4" fill="none" stroke-linecap="round"/>'
+    :mood==="sad"?'<path d="M40 77 Q50 68 60 77" stroke="#3a2412" stroke-width="4" fill="none" stroke-linecap="round"/>'
+    :'<ellipse cx="50" cy="74" rx="5" ry="6" fill="#3a2412"/>';
+  const eyes=mood==="happy"?'<path d="M34 56 q5 -7 10 0" stroke="#3a2412" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M56 56 q5 -7 10 0" stroke="#3a2412" stroke-width="4" fill="none" stroke-linecap="round"/>'
+    :'<circle cx="39" cy="55" r="5" fill="#3a2412"/><circle cx="61" cy="55" r="5" fill="#3a2412"/>';
+  const tears=mood==="sad"?'<path d="M36 61 q-4 8 0 11 q4 -3 0 -11z" fill="#5fb8ff"/><path d="M64 61 q-4 8 0 11 q4 -3 0 -11z" fill="#5fb8ff"/>':"";
+  return `<svg class="mascot ${cls}" viewBox="0 0 100 100" role="img" aria-label="Momo the monkey looks ${mood}">
+   <circle cx="16" cy="58" r="12" fill="#8a5a2b" stroke="#3a2412" stroke-width="3"/><circle cx="16" cy="58" r="6" fill="#f0c894"/>
+   <circle cx="84" cy="58" r="12" fill="#8a5a2b" stroke="#3a2412" stroke-width="3"/><circle cx="84" cy="58" r="6" fill="#f0c894"/>
+   <circle cx="50" cy="58" r="34" fill="#8a5a2b" stroke="#3a2412" stroke-width="3"/>
+   <path d="M24 64 Q24 44 40 46 Q50 50 60 46 Q76 44 76 64 Q76 90 50 90 Q24 90 24 64Z" fill="#f0c894"/>
+   <path d="M18 32 Q50 0 82 32 Z" fill="#e8d6a0" stroke="#3a2412" stroke-width="3"/><rect x="12" y="30" width="76" height="8" rx="4" fill="#c9b27a" stroke="#3a2412" stroke-width="3"/>
+   <rect x="20" y="31" width="60" height="4" fill="#2f6b3a"/>
+   ${eyes}<circle cx="31" cy="68" r="4.5" fill="#f5a9a0"/><circle cx="69" cy="68" r="4.5" fill="#f5a9a0"/>${mouth}${tears}</svg>`;
+}
+const chestSVG=`<svg class="chest" viewBox="0 0 170 130" role="img" aria-label="Glowing treasure chest">
+  <path d="M15 55 Q15 15 85 15 Q155 15 155 55 Z" fill="#c8742c" stroke="#3a2412" stroke-width="5"/>
+  <rect x="15" y="55" width="140" height="65" rx="8" fill="#e0893a" stroke="#3a2412" stroke-width="5"/>
+  <rect x="75" y="15" width="20" height="105" fill="#ffc93c" stroke="#3a2412" stroke-width="4"/>
+  <rect x="70" y="50" width="30" height="26" rx="6" fill="#ffe08a" stroke="#3a2412" stroke-width="4"/>
+  <circle cx="85" cy="61" r="4" fill="#3a2412"/><circle cx="40" cy="8" r="4" fill="#ffc93c"/><circle cx="130" cy="6" r="3" fill="#ffc93c"/></svg>`;
+function signSVG(m){return `<svg class="sign" viewBox="0 0 180 120" role="img" aria-label="Wooden sign: ${esc(m.name)}">
+  <rect x="84" y="50" width="12" height="70" fill="#6b4423" stroke="#2a1a0c" stroke-width="3"/>
+  <path d="M10 14 H150 L172 38 L150 62 H10 Z" fill="#a0703f" stroke="#2a1a0c" stroke-width="4"/>
+  <path d="M18 26 H146 M18 50 H146" stroke="#7e5428" stroke-width="2"/>
+  <text x="84" y="46" text-anchor="middle" font-family="Times New Roman" font-size="24" font-weight="bold" fill="#fff8e0">${esc(m.name)}</text>
+  <path d="M30 8 q10 14 0 26 M140 6 q-12 16 -2 30" stroke="#2f6b3a" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <circle cx="34" cy="20" r="5" fill="#4f9a3c"/><circle cx="138" cy="22" r="5" fill="#4f9a3c"/></svg>`;}
+
+// Background: hanging vines, big leaves, and drifting fireflies
+(function deco(){
+  const vine=(h,flip)=>`<svg class="vine" width="70" height="${h}" viewBox="0 0 70 ${h}" style="${flip?"transform:scaleX(-1)":""}"><path d="M35 0 C10 ${h*.2} 60 ${h*.4} 30 ${h*.6} S40 ${h*.9} 32 ${h}" stroke="#1f4d2a" stroke-width="5" fill="none"/>${
+    Array.from({length:Math.floor(h/46)},(_,i)=>{const y=20+i*46,x=i%2?44:22,r=i%2?30:-30;return `<path d="M${x} ${y} q14 -14 26 0 q-14 14 -26 0z" fill="${i%3?"#2f6b3a":"#3f8a45"}" transform="rotate(${r} ${x} ${y})"/>`;}).join("")}</svg>`;
+  const leaf=(c,r)=>`<svg width="160" height="160" viewBox="0 0 160 160" style="transform:rotate(${r}deg)"><path d="M80 150 C10 120 10 40 80 10 C150 40 150 120 80 150Z" fill="${c}"/><path d="M80 150 V18" stroke="#0c2416" stroke-width="4"/>${[40,70,100].map(y=>`<path d="M80 ${y+20} L45 ${y} M80 ${y+20} L115 ${y}" stroke="#0c2416" stroke-width="3"/>`).join("")}</svg>`;
+  const items=[[vine(320),1,0],[vine(240,1),91,0],[vine(180),18,0],[leaf("#163c22",-30),-5,72],[leaf("#1b4628",35),88,78],[leaf("#12331d",160),70,-6]];
+  $("deco").innerHTML=items.map(([s,x,y])=>`<div class="${s.includes('class="vine"')?"vine":""}" style="left:${x}%;top:${y}%">${s}</div>`).join("");
+})();
+(function flies(){
+  const c=$("flies");if(!c||matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const x=c.getContext("2d");let W,H;const fit=()=>{W=c.width=innerWidth;H=c.height=innerHeight;};fit();addEventListener("resize",fit);
+  const ps=Array.from({length:40},()=>({x:Math.random(),y:Math.random(),r:1.2+Math.random()*2,vx:(Math.random()-.5)*.0008,vy:(Math.random()-.5)*.0006,d:Math.random()*6}));
+  (function f(){x.clearRect(0,0,W,H);for(const p of ps){p.x+=p.vx+Math.sin(p.d)*.0004;p.y+=p.vy+Math.cos(p.d*.7)*.0003;p.d+=.015;
+    if(p.x<0)p.x=1;if(p.x>1)p.x=0;if(p.y<0)p.y=1;if(p.y>1)p.y=0;
+    const a=Math.max(0,Math.sin(p.d*2.2));const g=x.createRadialGradient(p.x*W,p.y*H,0,p.x*W,p.y*H,p.r*5);
+    g.addColorStop(0,`rgba(244,240,120,${.9*a})`);g.addColorStop(1,"rgba(183,227,90,0)");x.fillStyle=g;x.beginPath();x.arc(p.x*W,p.y*H,p.r*5,0,7);x.fill();}
+    requestAnimationFrame(f);})();
+})();
+function flash(kind){const d=document.createElement("div");d.className="flash "+kind;document.body.appendChild(d);setTimeout(()=>d.remove(),600);}
+function floatText(txt,el,plus){const f=document.createElement("div");f.className="float"+(plus?" plus":"");f.textContent=txt;
+  const r=(el||$("status")).getBoundingClientRect();f.style.left=(r.left+r.width/2-24)+"px";f.style.top=r.top+"px";document.body.appendChild(f);setTimeout(()=>f.remove(),1200);}
+
+// ===== State =====
+const G={name:"",maze:0,timeLeft:TOTAL_TIME,score:0,correct:0,keys:0,flies:0,firstWrong:[],timer:null,phase:"start",started:false,code:null,ref:null,
+  triedWrong:false,hinted:false,solved:false};
+function startTimer(){stopTimer();G.timer=setInterval(()=>{G.timeLeft--;renderStatus();if(G.timeLeft%10===0)sync();if(G.timeLeft<=0){stopTimer();timeUp();}},1000);}
+function stopTimer(){clearInterval(G.timer);G.timer=null;}
+function penalty(sec,el){
+  G.timeLeft=Math.max(0,G.timeLeft-sec);renderStatus();floatText("−"+sec+"s",el);
+  if(G.timeLeft<=0){stopTimer();timeUp();}else sync();
+}
+function renderStatus(){
+  const st=$("status");st.hidden=false;
+  st.innerHTML=`<span class="item">👤 ${esc(G.name)}</span>
+   <span class="item time ${G.timeLeft<=60?"low":""}" aria-label="Time left">⏱ ${fmt(G.timeLeft)}</span>
+   <span class="item" aria-label="Score">★ ${G.score}</span>
+   <span class="item" aria-label="Gates opened">🚪 ${G.correct}/${TOTAL_Q}</span>
+   <span class="item" aria-label="Bonus keys">🔑 ${G.keys}/${TOTAL_Q}</span>
+   <span class="item"><button class="mute" id="music" aria-label="${musicOn?"Turn music off":"Turn music on"}" style="${musicOn?"":"opacity:.35"}">🎵</button><button class="mute" id="mute" aria-label="${muted?"Turn sound on":"Turn sound off"}">${muted?"🔇":"🔊"}</button></span>`;
+  $("mute").onclick=()=>{muted=!muted;BGM.level();renderStatus();};
+  $("music").onclick=()=>{musicOn=!musicOn;BGM.level();renderStatus();};
+  document.body.classList.toggle("danger",!!G.started&&G.timeLeft<=60&&G.phase!=="done"&&G.phase!=="over");
+}
+const card=$("card");
+function setColor(i){const m=i==null?null:MAZES[i];[card,$("ovq")].forEach(el=>{el.style.setProperty("--rc",m?m.c:"var(--lime)");el.style.setProperty("--rs",m?m.s:"#eef6d8");});}
+
+// ===== Passage overlay =====
+function passageHTML(){
+  let html=`<div class="passage"><h3>Animal Fun Facts</h3><div class="by">By Christine Leung</div><div class="pl">`;
+  PASSAGE.forEach(([n,t,p])=>{if(p&&n>1)html+=`<div class="gap"></div>`;html+=`<span class="n">${n}</span><span class="t${p?" ind":""}">${esc(t)}</span>`;});
+  return html+`</div><div class="src">Adapted from https://www.science.co.nz/sciencefacts/animals.html</div></div>`;
+}
+function openPassage(){
+  const ov=$("ovp");ov.hidden=false;
+  ov.innerHTML=`<div class="panel" role="dialog" aria-modal="true" aria-label="Passage"><div class="phead"><h2>📜 Read the passage <span class="muted" style="font-weight:normal">阅读文章</span></h2>
+    <button class="btn alt" id="pclose">Close ✕</button></div>${passageHTML()}<button class="btn" id="pclose2">Back to the game</button></div>`;
+  const close=()=>{ov.hidden=true;ov.innerHTML="";const f=document.querySelector("#ovq:not([hidden]) input:not(:disabled)");if(f)f.focus();};
+  $("pclose").onclick=close;$("pclose2").onclick=close;ov.onclick=e=>{if(e.target===ov)close();};
+  $("pclose").focus();
+}
+function closeOverlays(){["ovq","ovp"].forEach(id=>{$(id).hidden=true;$(id).innerHTML="";});}
+
+// ===== Start screen =====
+function startScreen(){
+  stopTimer();BGM.stop();stopMaze();closeOverlays();if(G.code)leaveLive();G.phase="start";G.started=false;document.body.classList.remove("danger");
+  setColor(null);$("status").hidden=true;
+  card.innerHTML=`
+   <div class="talk">${momo("happy","bounce")}<div class="bubble"><h1>Animal Maze</h1>
+     Hi! I'm Momo. Read <i>Animal Fun Facts</i> and answer questions to open the gates in three jungle mazes!<span class="zh">嗨！我是 Momo。读《Animal Fun Facts》，答对问题打开大门，走出三个丛林迷宫！</span></div></div>
+   <div class="mazes3">${MAZES.map(m=>`<div class="mchip" style="background:${m.hex}">${m.name}<small>${m.title}</small><small>${m.qs.length} gates · Q${QS[m.qs[0]].id}–${QS[m.qs[m.qs.length-1]].id}</small></div>`).join("")}</div>
+   <ul class="rules">
+     <li>Move with the arrow keys, the buttons, or swipe. <span class="zh">用方向键、按钮或滑动来移动。</span></li>
+     <li>Walk into a gate to answer its question. Answer correctly to open it. <span class="zh">走到大门前回答问题，答对才能打开。</span></li>
+     <li>Then choose the line where you found the answer to win a bonus key 🔑. <span class="zh">再选出答案所在的行，赢得奖励钥匙。</span></li>
+     <li>You have 15 minutes. Wrong answer: −15 seconds. Hint: −10 seconds. <span class="zh">限时 15 分钟。答错扣 15 秒，看提示扣 10 秒。</span></li>
+     <li>Tap 📜 Passage any time to read the text. <span class="zh">随时按 📜 Passage 阅读文章。</span></li>
+   </ul>
+   <div><button class="btn alt" id="readfirst">📜 Read the passage first</button></div>
+   ${LIVE_OK?`<label for="gc"><b>Game code</b> <span class="muted">游戏密码（老师给的 6 位数字）</span></label>
+   <input id="gc" class="namein" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="e.g. 482915">`:""}
+   <label for="nm"><b>Your name</b> <span class="muted">你的名字</span></label>
+   <input id="nm" class="namein" maxlength="20" autocomplete="off" placeholder="Type your name">
+   <div id="joinErr" class="fb no" hidden></div>
+   <div class="row">${LIVE_OK?`<button class="btn" id="join" disabled>Join game</button>`:""}<button class="btn ${LIVE_OK?"alt":""}" id="go" disabled>${LIVE_OK?"Practise without a code":"Start the game"}</button></div>`;
+  const nm=$("nm"),go=$("go"),gc=$("gc"),jb=$("join");
+  $("readfirst").onclick=openPassage;
+  const upd=()=>{const n=!!nm.value.trim();go.disabled=!n;if(jb)jb.disabled=!(n&&/^\d{6}$/.test(gc.value.trim()));};
+  nm.oninput=upd;if(gc)gc.oninput=()=>{gc.value=gc.value.replace(/\D/g,"");upd();};
+  nm.onkeydown=e=>{if(e.key==="Enter"){if(jb&&!jb.disabled)jb.click();else if(!go.disabled&&!jb)go.click();}};
+  go.onclick=()=>{SFX.click();BGM.start();G.code=null;resetGame(nm.value.trim());begin();};
+  if(jb)jb.onclick=()=>{SFX.click();BGM.start();joinGame(gc.value.trim(),nm.value.trim());};
+  const urlCode=(new URLSearchParams(location.search).get("code")||"").replace(/\D/g,"").slice(0,6);
+  if(gc&&urlCode){gc.value=urlCode;upd();nm.focus();}else (gc||nm).focus();
+}
+function resetGame(name){Object.assign(G,{name,maze:0,timeLeft:TOTAL_TIME,score:0,correct:0,keys:0,flies:0,firstWrong:[],started:false});}
+function begin(){if(G.started)return;G.started=true;renderStatus();startTimer();mazeIntro();sync({state:"playing"});}
+
+// ===== Live mode (Firebase, shared with the teacher dashboard) =====
+const LIVE_OK=typeof firebase!=="undefined";
+let DBX=null,AUTH=null;
+if(LIVE_OK){
+  firebase.initializeApp({apiKey:"AIzaSyAEAb6WWNJJN7OAj1A5FVNUx7Y_vxpHhjw",authDomain:"f2-eng-tenses-live.firebaseapp.com",
+    databaseURL:"https://f2-eng-tenses-live-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"f2-eng-tenses-live",
+    storageBucket:"f2-eng-tenses-live.firebasestorage.app",messagingSenderId:"591157249024",appId:"1:591157249024:web:9e7aa1bd6b3c497a6104e5"});
+  DBX=firebase.database();AUTH=firebase.auth();
+}
+function sync(extra){
+  if(!G.code||!G.ref)return;
+  const st=G.phase==="over"?"timeup":G.phase==="done"?"escaped":G.started?"playing":"lobby";
+  G.ref.update(Object.assign({maze:G.maze,score:G.score,correct:G.correct,keys:G.keys,flies:G.flies,wrong:G.firstWrong.length,
+    timeLeft:G.timeLeft,state:st,updatedAt:firebase.database.ServerValue.TIMESTAMP},extra||{})).catch(()=>{});
+}
+function joinErr(msg){const e=$("joinErr");if(e){e.hidden=false;e.innerHTML=msg;}}
+async function freshAuth(force){if(force){try{await AUTH.signOut();}catch(e){}}if(!AUTH.currentUser)await AUTH.signInAnonymously();await AUTH.currentUser.getIdToken(true);}
+async function joinGame(code,name,retry){
+  const jb=$("join");jb.disabled=true;jb.textContent="Joining…";
+  const fail=msg=>{joinErr(msg);jb.disabled=false;jb.textContent="Join game";};
+  try{
+    await freshAuth(!!retry);
+    const gref=DBX.ref("games/"+code);
+    const snap=await gref.child("status").get();
+    if(!snap.exists())return fail("Game code not found. Check the code with your teacher.<span class='zh'>找不到这个游戏密码，请向老师确认。</span>");
+    const kind=(await gref.child("kind").get()).val();
+    if(kind!=="maze")return fail("This code is for a different game. Check the code with your teacher.<span class='zh'>这个密码属于另一个游戏，请向老师确认。</span>");
+    if(snap.val()==="ended")return fail("This game has ended.<span class='zh'>这个游戏已经结束了。</span>");
+    resetGame(name);G.code=code;G.ref=gref.child("players/"+AUTH.currentUser.uid);
+    await G.ref.set({name,joinedAt:firebase.database.ServerValue.TIMESTAMP,state:"lobby",maze:0,score:0,correct:0,keys:0,flies:0,wrong:0,timeLeft:TOTAL_TIME,online:true});
+    G.ref.child("online").onDisconnect().set(false);
+    let joined=false;
+    G.ref.on("value",s=>{if(s.exists()){joined=true;return;}if(joined&&G.code===code&&G.phase!=="done"&&G.phase!=="over")removed();});
+    gref.child("status").on("value",s=>{if(G.code!==code)return;const v=s.val();
+      if(v==="live")begin();else if(v==="ended")endedByTeacher();else if(v==="lobby"&&!G.started)lobby();});
+  }catch(err){if(!retry&&/permission/i.test(err&&err.message||""))return joinGame(code,name,true);
+    fail("Could not join. Check your internet and try again.<span class='zh'>无法加入，请检查网络再试。</span>");}
+}
+function leaveLive(){if(G.code&&DBX){DBX.ref("games/"+G.code).child("status").off();if(G.ref)G.ref.off();}G.code=null;G.ref=null;}
+function lobby(){
+  setColor(null);renderStatus();
+  card.innerHTML=`<div class="center" style="display:flex;flex-direction:column;gap:14px">
+    ${momo("happy","bounce")}<h2>You're in, ${esc(G.name)}!</h2>
+    <p style="margin:0">Waiting for your teacher to start the game…<span class="zh">等待老师开始游戏……</span></p>
+    <p class="muted" style="margin:0">Game code ${esc(G.code)} · While you wait, read the passage!</p>
+    <button class="btn alt" id="readw">📜 Read the passage</button></div>`;
+  $("readw").onclick=openPassage;
+}
+function removed(){stopTimer();leaveLive();startScreen();joinErr("Your teacher removed you from the game. You can join again with a different name.<span class='zh'>老师把你移出了游戏，可以换个名字重新加入。</span>");}
+function endedByTeacher(){
+  if(G.phase==="done"||G.phase==="over")return;
+  stopTimer();BGM.stop();stopMaze();closeOverlays();G.phase="over";sync({state:G.started?"stopped":"lobby"});
+  setColor(null);
+  card.innerHTML=`<div class="center" style="display:flex;flex-direction:column;gap:14px">
+    ${momo("wow")}<h2>Your teacher ended the game.</h2><span class="muted">老师结束了游戏。</span>
+    <div class="stats"><div class="stat">Gates opened<b>${G.correct}/${TOTAL_Q}</b></div><div class="stat">Score<b>${G.score}</b></div><div class="stat">Bonus keys<b>${G.keys}/${TOTAL_Q}</b></div></div>
+    ${reviewHTML()}</div>`;
+}
+function endButtons(label){
+  return G.code?`<p class="muted" style="margin:0">Your score has been sent to your teacher.<span class="zh">你的成绩已经传给老师。</span></p>`:`<button class="btn" id="again">${label}</button>`;
+}
+
+// ===== Maze intro =====
+function mazeIntro(){
+  const m=MAZES[G.maze];setColor(G.maze);G.phase="intro";stopMaze();
+  const first=QS[m.qs[0]].id,last=QS[m.qs[m.qs.length-1]].id;
+  card.innerHTML=`<div class="mintro">${signSVG(m)}
+    <h2>${m.name}: ${m.title}</h2><span class="muted">${m.zh}</span>
+    <p style="margin:0">${m.qs.length} locked gates · Questions ${first}–${last}${G.maze===2?" · then find the treasure!":""}<span class="zh">${m.qs.length} 道锁着的大门 · 第 ${first}–${last} 题${G.maze===2?" · 然后找到宝藏！":""}</span></p>
+    <p class="muted" style="margin:0">It is dark in the jungle — you can only see near you. 丛林很暗，只能看到身边。</p>
+    <button class="btn go" id="enter">Enter the maze ▶</button></div>`;
+  $("enter").onclick=()=>{SFX.click();creak();mazeScreen();};
+  $("enter").focus();
+}
+
+// ===== Maze engine =====
+function rngFrom(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function buildMaze(m){
+  for(let s=m.seed;;s++){
+    const R=rngFrom(s),W=2*m.w+1,H=2*m.h+1,grid=Array.from({length:H},()=>Array(W).fill(1));
+    const seen=Array.from({length:m.h},()=>Array(m.w).fill(false)),stack=[[0,0]];seen[0][0]=true;grid[1][1]=0;
+    while(stack.length){const [cx,cy]=stack[stack.length-1];
+      const nb=[[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>[cx+dx,cy+dy,dx,dy]).filter(([x,y])=>x>=0&&y>=0&&x<m.w&&y<m.h&&!seen[y][x]);
+      if(!nb.length){stack.pop();continue;}
+      const [x,y,dx,dy]=nb[Math.floor(R()*nb.length)];seen[y][x]=true;grid[2*cy+1+dy][2*cx+1+dx]=0;grid[2*y+1][2*x+1]=0;stack.push([x,y]);}
+    // unique route start → exit (perfect maze)
+    const start=[1,1],exit=[W-2,H-2],prev={},q=[start],key=(x,y)=>x+","+y;prev[key(1,1)]=null;
+    while(q.length){const [x,y]=q.shift();if(x===exit[0]&&y===exit[1])break;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(!grid[ny][nx]&&!(key(nx,ny) in prev)){prev[key(nx,ny)]=[x,y];q.push([nx,ny]);}}}
+    const path=[];let c=exit;while(c){path.unshift(c);c=prev[key(c[0],c[1])];}
+    const cellsOnPath=(path.length+1)/2;
+    if(cellsOnPath<m.w*m.h*0.42&&s<m.seed+400)continue;
+    // gates spaced along the route, always on a corridor tile (odd index)
+    const n=m.qs.length,gates=[];
+    for(let k=0;k<n;k++){let i=Math.round((k+1)*(path.length-1)/(n+1));if(i%2===0)i++;if(i>=path.length-1)i=path.length-2;
+      if(gates.some(g=>g.i===i))i+=2;gates.push({i,x:path[i][0],y:path[i][1],q:m.qs[k],open:false});}
+    // fireflies in dead ends off the route
+    const onPath=new Set(path.map(p=>key(p[0],p[1])));
+    const dead=[];for(let cy=0;cy<m.h;cy++)for(let cx=0;cx<m.w;cx++){const x=2*cx+1,y=2*cy+1;if(onPath.has(key(x,y)))continue;
+      const open=[[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy])=>!grid[y+dy][x+dx]).length;if(open===1)dead.push([x,y]);}
+    const flies=[];const pool=[...dead];while(flies.length<3&&pool.length){const j=Math.floor(R()*pool.length);flies.push({x:pool[j][0],y:pool[j][1],got:false});pool.splice(j,1);}
+    return {W,H,grid,path,gates,flies,start,exit,seedUsed:s};
+  }
+}
+let MZ=null; // current maze runtime
+function stopMaze(){if(MZ){MZ.alive=false;removeEventListener("keydown",MZ.onKey);removeEventListener("keyup",MZ.onKeyUp);removeEventListener("resize",MZ.onResize);}MZ=null;}
+function mazeScreen(){
+  const m=MAZES[G.maze];setColor(G.maze);G.phase="maze";stopMaze();
+  const M=buildMaze(m);
+  card.innerHTML=`<div class="mhead"><span class="tag">${m.name} · ${m.title}</span>
+     <span class="gates" aria-label="Gates in this maze">${m.qs.map(qi=>`<i data-g="${qi}">${QS[qi].id}</i>`).join("")}</span></div>
+   <div class="stage" id="stage"><canvas id="mz" aria-label="Maze. Use arrow keys, the buttons below, or swipe to move."></canvas><div class="toast" id="toast">Find the gates 🚪 and reach the exit ✨</div></div>
+   <div class="ctrl">
+     <div class="dpad" aria-label="Move">
+       <button class="u" data-d="0,-1" aria-label="Up">▲</button><button class="l" data-d="-1,0" aria-label="Left">◀</button>
+       <button class="r" data-d="1,0" aria-label="Right">▶</button><button class="d" data-d="0,1" aria-label="Down">▼</button></div>
+     <div class="side"><button class="btn alt" id="readm">📜 Passage</button>
+       <div class="legend"><span>🚪 locked gate</span><span>✨ exit</span><span>🟡 firefly +10</span></div></div>
+   </div>`;
+  MZ={...M,m,px:M.start[0],py:M.start[1],rx:M.start[0],ry:M.start[1],moving:null,held:null,alive:true,explored:new Set(),t0:performance.now(),burst:[],bumpAt:0};
+  reveal();
+  $("readm").onclick=openPassage;
+  setTimeout(()=>{const t=$("toast");if(t)t.style.opacity="0";},3500);
+  // input: keys, D-pad (hold to repeat), swipe
+  const DIRS={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
+  MZ.onKey=e=>{if(!$("ovq").hidden||!$("ovp").hidden)return;const d=DIRS[e.key];if(!d)return;if(document.activeElement&&document.activeElement.tagName==="INPUT")return;
+    e.preventDefault();MZ.held=d;if(!MZ.moving)tryMove(d);};
+  MZ.onKeyUp=e=>{const d=DIRS[e.key];if(d&&MZ.held&&MZ.held[0]===d[0]&&MZ.held[1]===d[1])MZ.held=null;};
+  addEventListener("keydown",MZ.onKey);addEventListener("keyup",MZ.onKeyUp);
+  card.querySelectorAll(".dpad button").forEach(b=>{const d=b.dataset.d.split(",").map(Number);
+    const down=e=>{e.preventDefault();b.classList.add("on");MZ.held=d;if(!MZ.moving)tryMove(d);};
+    const up=()=>{b.classList.remove("on");if(MZ&&MZ.held===d)MZ.held=null;};
+    b.addEventListener("pointerdown",down);b.addEventListener("pointerup",up);b.addEventListener("pointerleave",up);b.addEventListener("pointercancel",up);
+    b.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();tryMove(d);}});});
+  const stage=$("stage");let sx=0,sy=0,st=0;
+  stage.addEventListener("touchstart",e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY;st=Date.now();},{passive:true});
+  stage.addEventListener("touchend",e=>{const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;if(Math.max(Math.abs(dx),Math.abs(dy))<22)return;
+    const d=Math.abs(dx)>Math.abs(dy)?[Math.sign(dx),0]:[0,Math.sign(dy)];
+    // long swipe = walk along the corridor
+    const steps=Math.min(6,Math.max(1,Math.round(Math.max(Math.abs(dx),Math.abs(dy))/(stage.clientWidth/MZ.W))));walkSteps(d,steps);},{passive:true});
+  MZ.onResize=()=>sizeCanvas();addEventListener("resize",MZ.onResize);
+  sizeCanvas();updGateChips();
+  requestAnimationFrame(frame);
+}
+function walkSteps(d,n){if(!MZ||n<=0)return;if(MZ.moving){setTimeout(()=>walkSteps(d,n),40);return;}if(tryMove(d))setTimeout(()=>walkSteps(d,n-1),130);}
+function updGateChips(){if(!MZ)return;MZ.gates.forEach(g=>{const el=card.querySelector(`[data-g="${g.q}"]`);if(el)el.classList.toggle("d",g.open);});}
+function reveal(){const R=3.2;for(let y=Math.max(0,MZ.py-R);y<=Math.min(MZ.H-1,MZ.py+R);y++)for(let x=Math.max(0,MZ.px-R);x<=Math.min(MZ.W-1,MZ.px+R);x++)
+  if(Math.hypot(x-MZ.px,y-MZ.py)<=R+.3)MZ.explored.add(x+","+y);}
+function tryMove([dx,dy]){
+  if(!MZ||MZ.moving||G.phase!=="maze")return false;
+  const nx=MZ.px+dx,ny=MZ.py+dy;
+  if(MZ.grid[ny]===undefined||MZ.grid[ny][nx]===undefined||MZ.grid[ny][nx]===1){const now=performance.now();if(now-MZ.bumpAt>350){SFX.bump();MZ.bumpAt=now;}return false;}
+  const gate=MZ.gates.find(g=>!g.open&&g.x===nx&&g.y===ny);
+  if(gate){MZ.held=null;openGate(gate);return false;}
+  MZ.moving={fx:MZ.px,fy:MZ.py,tx:nx,ty:ny,t:performance.now()};MZ.px=nx;MZ.py=ny;SFX.step();return true;
+}
+function arrive(){
+  reveal();
+  const f=MZ.flies.find(f=>!f.got&&f.x===MZ.px&&f.y===MZ.py);
+  if(f){f.got=true;G.flies++;G.score+=10;SFX.fly();floatText("+10",$("stage"),true);renderStatus();sync();
+    for(let i=0;i<14;i++)MZ.burst.push({x:f.x+.5,y:f.y+.5,vx:(Math.random()-.5)*.08,vy:(Math.random()-.5)*.08,life:1,c:"#f4e66b"});}
+  if(MZ.px===MZ.exit[0]&&MZ.py===MZ.exit[1])mazeDone();
+}
+function mazeDone(){
+  MZ.held=null;G.phase="exit";SFX.win();flash("good");
+  for(let i=0;i<40;i++)MZ.burst.push({x:MZ.exit[0]+.5,y:MZ.exit[1]+.5,vx:(Math.random()-.5)*.14,vy:(Math.random()-.5)*.14,life:1.3,c:i%2?"#f4e66b":"#b7e35a"});
+  setTimeout(()=>{if(G.phase!=="exit")return;if(G.maze<MAZES.length-1){G.maze++;sync();mazeIntro();}else win();},1300);
+}
+const MOVE_MS=125;
+function sizeCanvas(){
+  if(!MZ)return;const cv=$("mz"),stage=$("stage");if(!cv)return;
+  const avail=stage.clientWidth,maxH=Math.max(300,innerHeight-330);const S=Math.min(avail,maxH,620);
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.style.width=S+"px";cv.style.height=S+"px";cv.style.margin="0 auto";cv.width=Math.round(S*dpr);cv.height=Math.round(S*dpr);
+  MZ.ts=cv.width/MZ.W;MZ.ctx=cv.getContext("2d");MZ.bg=drawStatic();MZ.fog=document.createElement("canvas");MZ.fog.width=cv.width;MZ.fog.height=cv.height;MZ.fctx=MZ.fog.getContext("2d");
+}
+function drawStatic(){
+  const off=document.createElement("canvas");off.width=$("mz").width;off.height=$("mz").height;const x=off.getContext("2d"),ts=MZ.ts,R=rngFrom(MZ.seedUsed*7+3);
+  x.fillStyle="#0b2213";x.fillRect(0,0,off.width,off.height);
+  for(let y=0;y<MZ.H;y++)for(let X=0;X<MZ.W;X++)if(!MZ.grid[y][X]){
+    x.fillStyle=G.maze===2?"#4b3f35":"#5a4528";x.fillRect(X*ts,y*ts,ts+1,ts+1);
+    for(let k=0;k<3;k++){x.fillStyle=G.maze===2?"rgba(160,140,120,.35)":"rgba(190,160,110,.35)";x.beginPath();x.arc((X+R())*ts,(y+R())*ts,ts*(.04+R()*.05),0,7);x.fill();}}
+  const greens=G.maze===1?["#2c5a1f","#3d7a2a","#4f8f33","#22481a"]:G.maze===2?["#2b2f45","#383d58","#24283b","#454a66"]:["#1d4a2b","#245a32","#2f6b3a","#173d23"];
+  for(let y=0;y<MZ.H;y++)for(let X=0;X<MZ.W;X++)if(MZ.grid[y][X]){
+    for(let k=0;k<4;k++){x.fillStyle=greens[Math.floor(R()*greens.length)];x.beginPath();
+      x.arc((X+.15+R()*.7)*ts,(y+.15+R()*.7)*ts,ts*(.38+R()*.22),0,7);x.fill();}
+    if(R()<.35){x.fillStyle=G.maze===2?"rgba(180,170,255,.25)":"rgba(255,120,160,.55)";x.beginPath();x.arc((X+R())*ts,(y+R())*ts,ts*.09,0,7);x.fill();}}
+  return off;
+}
+function drawGate(x,g,ts,t,next){
+  const X=g.x*ts,Y=g.y*ts,hor=!MZ.grid[g.y][g.x-1]||!MZ.grid[g.y][g.x+1];
+  if(next){const a=.35+.25*Math.sin(t/300);const gr=x.createRadialGradient(X+ts/2,Y+ts/2,0,X+ts/2,Y+ts/2,ts*1.1);gr.addColorStop(0,`rgba(244,230,107,${a})`);gr.addColorStop(1,"rgba(244,230,107,0)");x.fillStyle=gr;x.fillRect(X-ts,Y-ts,ts*3,ts*3);}
+  x.save();x.translate(X+ts/2,Y+ts/2);if(!hor)x.rotate(Math.PI/2);
+  x.fillStyle="#6b4423";x.strokeStyle="#2a1a0c";x.lineWidth=Math.max(1,ts*.05);
+  for(const px of [-.38,.38]){x.fillRect(px*ts-ts*.06,-ts*.45,ts*.12,ts*.9);x.strokeRect(px*ts-ts*.06,-ts*.45,ts*.12,ts*.9);}
+  for(const py of [-.25,0,.25]){x.fillStyle="#8a5a2b";x.fillRect(-ts*.38,py*ts-ts*.05,ts*.76,ts*.1);}
+  x.strokeStyle="#3f8a45";x.lineWidth=Math.max(1.5,ts*.07);x.beginPath();x.moveTo(-ts*.4,-ts*.3);x.bezierCurveTo(-ts*.1,ts*.3,ts*.1,-ts*.3,ts*.4,ts*.3);x.stroke();
+  x.restore();
+  x.fillStyle=MAZES[G.maze].hex;x.beginPath();x.arc(X+ts/2,Y+ts/2,ts*.26,0,7);x.fill();x.lineWidth=Math.max(1,ts*.04);x.strokeStyle="#fff";x.stroke();
+  x.fillStyle="#fff";x.font=`bold ${Math.round(ts*.26)}px "Times New Roman",serif`;x.textAlign="center";x.textBaseline="middle";x.fillText(QS[g.q].id,X+ts/2,Y+ts/2+1);
+}
+function drawPlayer(x,ts){
+  const cx=(MZ.rx+.5)*ts,cy=(MZ.ry+.5)*ts,r=ts*.36,b=MZ.moving?Math.sin((performance.now()-MZ.moving.t)/MOVE_MS*Math.PI)*ts*.06:0;
+  const gl=x.createRadialGradient(cx,cy,0,cx,cy,ts*1.4);gl.addColorStop(0,"rgba(255,230,150,.35)");gl.addColorStop(1,"rgba(255,230,150,0)");x.fillStyle=gl;x.fillRect(cx-ts*1.5,cy-ts*1.5,ts*3,ts*3);
+  x.save();x.translate(cx,cy-b);
+  x.fillStyle="#8a5a2b";x.beginPath();x.arc(-r*.95,r*.1,r*.32,0,7);x.arc(r*.95,r*.1,r*.32,0,7);x.fill();
+  x.beginPath();x.arc(0,r*.1,r,0,7);x.fill();
+  x.fillStyle="#f0c894";x.beginPath();x.ellipse(0,r*.32,r*.68,r*.58,0,0,7);x.fill();
+  x.fillStyle="#3a2412";x.beginPath();x.arc(-r*.28,r*.15,r*.11,0,7);x.arc(r*.28,r*.15,r*.11,0,7);x.fill();
+  x.strokeStyle="#3a2412";x.lineWidth=Math.max(1,r*.1);x.beginPath();x.arc(0,r*.42,r*.22,.2,Math.PI-.2);x.stroke();
+  x.fillStyle="#e8d6a0";x.beginPath();x.ellipse(0,-r*.42,r*.95,r*.62,0,Math.PI,0);x.fill();x.fillRect(-r*1.1,-r*.48,r*2.2,r*.18);
+  x.fillStyle="#2f6b3a";x.fillRect(-r*.8,-r*.56,r*1.6,r*.1);
+  x.restore();
+}
+function frame(t){
+  if(!MZ||!MZ.alive)return;
+  const x=MZ.ctx,ts=MZ.ts;if(!x){requestAnimationFrame(frame);return;}
+  if(MZ.moving){const k=Math.min(1,(t-MZ.moving.t)/MOVE_MS);MZ.rx=MZ.moving.fx+(MZ.moving.tx-MZ.moving.fx)*k;MZ.ry=MZ.moving.fy+(MZ.moving.ty-MZ.moving.fy)*k;
+    if(k>=1){MZ.moving=null;arrive();if(MZ&&MZ.held&&G.phase==="maze")tryMove(MZ.held);}}
+  x.drawImage(MZ.bg,0,0);
+  // exit
+  const ex=(MZ.exit[0]+.5)*ts,ey=(MZ.exit[1]+.5)*ts,pulse=.6+.4*Math.sin(t/400);
+  // fireflies
+  MZ.flies.forEach((f,i)=>{if(f.got)return;const fx=(f.x+.5)*ts+Math.sin(t/500+i)*ts*.12,fy=(f.y+.5)*ts+Math.cos(t/430+i)*ts*.12,a=.55+.45*Math.sin(t/260+i*2);
+    const g=x.createRadialGradient(fx,fy,0,fx,fy,ts*.45);g.addColorStop(0,`rgba(250,245,140,${a})`);g.addColorStop(1,"rgba(183,227,90,0)");x.fillStyle=g;x.beginPath();x.arc(fx,fy,ts*.45,0,7);x.fill();
+    x.fillStyle="#fffbd0";x.beginPath();x.arc(fx,fy,ts*.08,0,7);x.fill();});
+  const nextGate=MZ.gates.find(g=>!g.open);
+  MZ.gates.forEach(g=>{if(!g.open)drawGate(x,g,ts,t,g===nextGate);});
+  drawPlayer(x,ts);
+  // darkness: a soft torchlight circle around Momo; explored paths stay dimly visible
+  const f=MZ.fctx;f.globalCompositeOperation="source-over";f.clearRect(0,0,MZ.fog.width,MZ.fog.height);
+  for(let y=0;y<MZ.H;y++)for(let X=0;X<MZ.W;X++){f.fillStyle=MZ.explored.has(X+","+y)?"rgba(2,7,4,.5)":"rgba(2,7,4,.97)";const x0=Math.round(X*ts),y0=Math.round(y*ts);f.fillRect(x0,y0,Math.round((X+1)*ts)-x0,Math.round((y+1)*ts)-y0);}
+  const pcx=(MZ.rx+.5)*ts,pcy=(MZ.ry+.5)*ts,hole=f.createRadialGradient(pcx,pcy,0,pcx,pcy,ts*4.2);
+  hole.addColorStop(0,"rgba(0,0,0,1)");hole.addColorStop(.5,"rgba(0,0,0,.95)");hole.addColorStop(1,"rgba(0,0,0,0)");
+  f.globalCompositeOperation="destination-out";f.fillStyle=hole;f.beginPath();f.arc(pcx,pcy,ts*4.2,0,7);f.fill();
+  x.drawImage(MZ.fog,0,0);
+  // exit glows through the dark so students know where to head
+  const eg=x.createRadialGradient(ex,ey,0,ex,ey,ts*1.3);eg.addColorStop(0,`rgba(255,240,160,${.85*pulse})`);eg.addColorStop(.5,`rgba(183,227,90,${.35*pulse})`);eg.addColorStop(1,"rgba(183,227,90,0)");
+  x.fillStyle=eg;x.beginPath();x.arc(ex,ey,ts*1.3,0,7);x.fill();
+  x.font=`${Math.round(ts*.62)}px serif`;x.textAlign="center";x.textBaseline="middle";x.fillText(G.maze===2?"💰":"✨",ex,ey);
+  // sparkle bursts
+  MZ.burst=MZ.burst.filter(p=>(p.life-=.02)>0);MZ.burst.forEach(p=>{p.x+=p.vx;p.y+=p.vy;x.globalAlpha=Math.min(1,p.life);x.fillStyle=p.c;x.beginPath();x.arc(p.x*ts,p.y*ts,ts*.07,0,7);x.fill();x.globalAlpha=1;});
+  requestAnimationFrame(frame);
+}
+
+// ===== Gate question (overlay) =====
+let CUR=null; // {gate, q, yn, reason}
+function openGate(gate){
+  const q=QS[gate.q];G.phase="q";G.triedWrong=false;G.hinted=false;G.solved=false;
+  CUR={gate,q,yn:null,reason:null};
+  const ov=$("ovq");setColor(G.maze);ov.hidden=false;tone([392,523],.07,"triangle",.12);
+  const gi=MAZES[G.maze].qs.indexOf(gate.q)+1;
+  let body="";
+  if(q.t==="fill")body=`<div class="sentence">${esc(q.before)} <input class="blank" id="ans" style="width:${q.w}ch" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Your answer"> ${esc(q.after)}</div>`;
+  if(q.t==="word")body=`<div class="ask">Find <u>one word</u> in the passage that means:</div>
+     <div class="sentence" style="text-align:center">“${esc(q.mean)}” → <input class="blank" id="ans" style="width:${q.w}ch" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="The word"></div>
+     <span class="zh" style="margin-top:-8px">在文章里找出一个意思相同的词。</span>`;
+  if(q.t==="yn"){CUR.order=shuffle(q.reasons.map((r,i)=>({r,i})));
+    body=`<div class="ask">${esc(q.ask)}</div>
+     <div class="yn"><button class="opt" data-yn="1">Yes</button><button class="opt" data-yn="0">No</button></div>
+     <div><b>Choose the reason from the text:</b> <span class="muted">选出文章里的理由：</span></div>
+     <div class="opts">${CUR.order.map((o,k)=>`<button class="opt" data-r="${o.i}"><b>${"ABCD"[k]}</b>${esc(o.r)}</button>`).join("")}</div>`;}
+  ov.innerHTML=`<div class="panel" id="qp" role="dialog" aria-modal="true" aria-label="Gate question">
+    <div class="phead"><span class="tag">🚪 Gate ${gi} · Question ${q.id}</span><button class="btn alt" id="qread">📜 Passage</button></div>
+    ${body}
+    <div id="fb" aria-live="polite"></div>
+    <div class="row" id="acts"><button class="btn" id="chk">Check</button><button class="btn hint" id="hint">Hint (−10s)</button><button class="btn alt" id="later">Back to maze</button></div></div>`;
+  $("qread").onclick=openPassage;
+  $("chk").onclick=check;
+  $("hint").onclick=()=>{if(G.hinted)return;G.hinted=true;penalty(HINT_PEN,$("hint"));showHint();$("hint").disabled=true;};
+  $("later").onclick=()=>{closeQ();};
+  const a=$("ans");if(a){a.addEventListener("keydown",e=>{if(e.key==="Enter"&&!G.solved){e.preventDefault();check();}});setTimeout(()=>a.focus(),50);}
+  ov.querySelectorAll("[data-yn]").forEach(b=>b.onclick=()=>{if(G.solved)return;CUR.yn=b.dataset.yn==="1";ov.querySelectorAll("[data-yn]").forEach(x=>x.classList.toggle("sel",x===b));SFX.click();});
+  ov.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>{if(G.solved)return;CUR.reason=+b.dataset.r;ov.querySelectorAll("[data-r]").forEach(x=>x.classList.toggle("sel",x===b));SFX.click();});
+}
+function closeQ(){$("ovq").hidden=true;$("ovq").innerHTML="";if(G.phase==="q")G.phase="maze";CUR=null;}
+function info(msg){const fb=$("fb");fb.className="fb info";fb.innerHTML=msg;}
+function showHint(){const q=CUR.q,fb=$("fb");fb.className="fb hintbox";fb.innerHTML=`<b>💡 Hint</b>${esc(q.h)}<span class="zh">${esc(q.hz)}</span>`;}
+function check(){
+  if(!CUR||G.solved)return;const q=CUR.q;
+  if(q.t==="yn"){
+    if(CUR.yn===null||CUR.reason===null)return info("Choose <b style='display:inline'>Yes or No</b> and a reason first.<span class='zh'>请先选择 Yes / No 和一个理由。</span>");
+    const okYN=CUR.yn===q.yes,okR=CUR.reason===0;
+    $("ovq").querySelectorAll("[data-yn]").forEach(b=>{b.classList.remove("right","wrong");if(b.classList.contains("sel"))b.classList.add(okYN?"right":"wrong");});
+    $("ovq").querySelectorAll("[data-r]").forEach(b=>{b.classList.remove("right","wrong");if(b.classList.contains("sel"))b.classList.add(okR?"right":"wrong");});
+    return okYN&&okR?right():wrong();
+  }
+  const el=$("ans"),r=mark(el.value,q.a);
+  if(r==="empty")return info("Type your answer first.<span class='zh'>请先输入答案。</span>");
+  if(r==="close"){el.classList.remove("right","wrong");return info("<b>Almost! Check your spelling.</b> (No time lost.)<span class='zh'>差一点！检查一下拼写。（不扣时间）</span>");}
+  el.classList.toggle("right",r==="right");el.classList.toggle("wrong",r!=="right");
+  r==="right"?right():wrong();
+}
+function wrong(){
+  SFX.bad();flash("bad");const q=CUR.q;
+  if(!G.triedWrong){G.triedWrong=true;G.firstWrong.push(q.id);if(G.ref)G.ref.child("missed/"+q.id).set(true).catch(()=>{});}
+  penalty(WRONG_PEN,$("acts"));if(G.phase==="over")return;
+  const fb=$("fb");fb.className="fb no";fb.innerHTML=`<b>Not yet. Try again!</b>${esc(q.h)}<span class="zh">${esc(q.hz)}</span>`;
+  const p=$("qp");p.classList.remove("shake");void p.offsetWidth;p.classList.add("shake");
+  G.hinted=true;const h=$("hint");if(h)h.disabled=true;
+}
+function right(){
+  if(G.solved)return;G.solved=true;SFX.ok();flash("good");const q=CUR.q;
+  const pts=G.triedWrong?50:100;G.score+=pts;G.correct++;renderStatus();sync();floatText("+"+pts,$("acts"),true);
+  $("ovq").querySelectorAll("#qp input, [data-yn], [data-r]").forEach(el=>el.disabled=true);
+  const fb=$("fb");fb.className="fb ok";
+  fb.innerHTML=`<div class="talk">${momo("happy","bounce")}<div><b>${G.triedWrong?"Well done! The gate opens.":"Excellent! First try!"}</b>${esc(q.full)}</div></div>`;
+  // bonus: find the line
+  const lo=q.lo;
+  $("acts").innerHTML=`<div style="width:100%;display:flex;flex-direction:column;gap:8px">
+     <div><b>🔑 Bonus key:</b> Which line tells you the answer? <span class="muted">答案在哪一行？</span></div>
+     <div class="lines4">${lo.map(l=>`<button class="opt" data-l="${esc(l)}">${esc(l)}</button>`).join("")}</div>
+     <button class="btn alt" id="skipb" style="align-self:flex-start">Skip bonus</button></div>`;
+  $("ovq").querySelectorAll("[data-l]").forEach(b=>b.onclick=()=>lineAnswer(b.dataset.l));
+  $("skipb").onclick=()=>lineAnswer(null);
+}
+function lineAnswer(l){
+  const q=CUR.q,ok=l!==null&&q.lines.includes(l);
+  $("ovq").querySelectorAll("[data-l]").forEach(b=>{b.disabled=true;if(q.lines.includes(b.dataset.l))b.classList.add("right");else if(b.dataset.l===l)b.classList.add("wrong");});
+  if(ok){G.keys++;G.score+=50;SFX.key();floatText("+50 🔑",$("acts"),true);renderStatus();sync();}
+  else if(l!==null){tone([300,240],.1,"sine",.12);if(G.ref)G.ref.child("lineMiss/"+q.id).set(true).catch(()=>{});}
+  const msg=ok?`<b style="color:var(--ok)">🔑 Correct! You earned a bonus key.</b>`:`<b>The answer is in ${esc(q.lines.join(" or "))}.</b>`;
+  const sk=$("skipb");if(sk)sk.remove();
+  const box=document.createElement("div");box.style.cssText="display:flex;flex-direction:column;gap:10px;width:100%";
+  box.innerHTML=`<div>${msg}</div><button class="btn go" id="cont" style="align-self:flex-start">Open the gate ▶</button>`;
+  $("acts").firstElementChild.appendChild(box);
+  $("cont").onclick=()=>{const g=CUR.gate;closeQ();openGateAnim(g);};$("cont").focus();
+}
+function openGateAnim(g){
+  if(!MZ)return;g.open=true;creak();updGateChips();
+  for(let i=0;i<22;i++)MZ.burst.push({x:g.x+.5,y:g.y+.5,vx:(Math.random()-.5)*.1,vy:(Math.random()-.5)*.1,life:1,c:i%3?"#8a5a2b":"#3f8a45"});
+  const left=MZ.gates.filter(x=>!x.open).length,t=$("toast");
+  if(t){t.textContent=left?`Gate open! ${left} more to go 🚪`:"All gates open — head for the exit ✨";t.style.opacity="1";setTimeout(()=>{if($("toast"))$("toast").style.opacity="0";},2600);}
+  G.phase="maze";
+}
+
+// ===== End screens =====
+function reviewHTML(){
+  if(!G.firstWrong.length)return `<p style="margin:0"><b>Perfect! No mistakes on the first try.</b><span class="zh">太棒了！每一题第一次就答对。</span></p>`;
+  return `<h3 style="align-self:flex-start">Review: questions you got wrong the first time <span class="zh">复习：第一次答错的题目</span></h3>
+   <ul class="review">${G.firstWrong.map(id=>{const q=QS.find(x=>x.id===id);return `<li><b>Q${id}</b> ${esc(q.full)}<span class="zh">${esc(q.lines.join(" / "))} · ${esc(q.h)}</span></li>`}).join("")}</ul>`;
+}
+function stars(n){return `<div class="stars" aria-label="${n} of 3 stars">${[0,1,2].map(i=>i<n?"★":`<span class="off">★</span>`).join("")}</div>`;}
+function win(){
+  stopTimer();BGM.stop();stopMaze();closeOverlays();SFX.win();confetti();
+  const used=TOTAL_TIME-G.timeLeft,bonus=G.timeLeft;G.score+=bonus;renderStatus();
+  const w=G.firstWrong.length,n=w<=1&&G.timeLeft>=180?3:w<=4?2:1;
+  G.phase="done";renderStatus();sync({state:"escaped",stars:n,timeUsed:used,finishedAt:LIVE_OK?firebase.database.ServerValue.TIMESTAMP:Date.now()});
+  setColor(2);
+  card.innerHTML=`<div class="center" style="display:flex;flex-direction:column;gap:14px">
+    ${chestSVG}<h2>You found the treasure, ${esc(G.name)}!</h2><span class="muted">恭喜你走出丛林，找到宝藏！</span>
+    ${stars(n)}
+    <div class="stats"><div class="stat">Time used<b>${fmt(used)}</b></div><div class="stat">Score<b>${G.score}</b></div><div class="stat">Bonus keys<b>${G.keys}/${TOTAL_Q}</b></div></div>
+    <p class="muted" style="margin:0">Score includes a time bonus of ${bonus} (1 point per second left) and ${G.flies} firefl${G.flies===1?"y":"ies"}.</p>
+    ${reviewHTML()}
+    ${endButtons("Play again")}</div>`;
+  if($("again"))$("again").onclick=startScreen;
+}
+function timeUp(){
+  if(G.phase==="over"||G.phase==="done")return;G.phase="over";stopMaze();closeOverlays();BGM.stop();SFX.bad();sync({state:"timeup",timeLeft:0});renderStatus();
+  setColor(null);
+  card.innerHTML=`<div class="center" style="display:flex;flex-direction:column;gap:14px">
+    ${momo("sad","shake")}<h2>Time's up, ${esc(G.name)}!</h2><span class="muted">时间到了！别灰心，再试一次。</span>
+    ${stars(0)}
+    <div class="stats"><div class="stat">Gates opened<b>${G.correct}/${TOTAL_Q}</b></div><div class="stat">Score<b>${G.score}</b></div><div class="stat">Bonus keys<b>${G.keys}/${TOTAL_Q}</b></div></div>
+    ${reviewHTML()}
+    ${endButtons("Try again")}</div>`;
+  if($("again"))$("again").onclick=startScreen;
+}
+function confetti(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const c=$("confetti"),x=c.getContext("2d");c.width=innerWidth;c.height=innerHeight;
+  const cols=["#f4e66b","#2f9e8f","#d9822b","#8a5cc7","#b7e35a"];
+  const ps=Array.from({length:160},()=>({x:Math.random()*c.width,y:-Math.random()*c.height,vx:(Math.random()-.5)*3,vy:2+Math.random()*4,r:4+Math.random()*5,a:Math.random()*6,col:cols[Math.floor(Math.random()*5)]}));
+  let t=0;(function f(){x.clearRect(0,0,c.width,c.height);ps.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.a+=.1;x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle=p.col;x.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);x.restore();});
+    if(++t<260)requestAnimationFrame(f);else x.clearRect(0,0,c.width,c.height);})();
+}
+addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ovp").hidden){$("ovp").hidden=true;$("ovp").innerHTML="";}});
+startScreen();
+</script>
+</body>
+</html>
